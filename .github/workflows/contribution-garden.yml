@@ -1,0 +1,44 @@
+name: Update Contribution Garden
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 0 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/contribution-garden.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: contribution-garden
+  cancel-in-progress: false
+
+jobs:
+  garden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out profile
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check renderer
+        run: node --test scripts/garden.test.mjs
+      - name: Render actual GitHub contributions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USERNAME: ${{ github.repository_owner }}
+        run: node scripts/update-contributions.mjs
+      - name: Commit refreshed garden
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/contributions-light.svg assets/contributions-dark.svg
+          if git diff --cached --quiet; then
+            echo "Garden is already up to date."
+            exit 0
+          fi
+          git commit -m "chore: refresh contribution garden [skip ci]"
+          git push
